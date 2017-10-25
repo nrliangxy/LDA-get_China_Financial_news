@@ -1,5 +1,4 @@
 import requests
-import chardet
 import json
 import arrow
 from pyquery import PyQuery as pq
@@ -7,15 +6,23 @@ from pyquery import PyQuery as pq
 url = 'https://www.cj1.com.cn/'
 
 def get_urls(url):
+    """
+    :param url: start url
+    :return: news url
+    """
     d = requests.get(url)
     items = pq(d.text)
     urls = ['http://www.cj1.com.cn' + i.attr('href') for i in
             items('article[class="excerpt ias_excerpt"] .desc a').items()]
     return urls
 
+
 def get_json(url):
+    """
+    :param url: news url
+    :return: news content
+    """
     r = requests.get(url)
-    # print(d.content.decode("utf-8"))
     d = r.content.decode("utf-8")
     items = pq(d)
     title = items('h1[class="single-post__title"]').text()
