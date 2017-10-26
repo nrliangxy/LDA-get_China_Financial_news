@@ -1,56 +1,36 @@
-import pandas as pd
-import re
-import nltk
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import stopwords
-import os
-from gensim import corpora, models, similarities
+import json
+import jieba
 import gensim
-wordnet_lemmatizer=WordNetLemmatizer()
-
-def clean_email_text(text):
+from gensim import corpora, models, similarities
+def make_word_set(word_file):
     """
-    :param text: the original text
-    :return: the text after cut noise_pattern
+    :param word_file: txt
+    :return: remove duplicate
     """
-    text = text.replace('\n', ' ')
-    noise_pattern = re.compile('|'.join(['-', '\d+\d+\d+',  '\d{4}-\d{2}-\d{2}', '[0-2]?[0-9]:[0-6][0-9]', '[\w]+@[\.\w]+', 'http\S+']))
-    clean_text = re.sub(noise_pattern, ' ', text)
-    pure_text = ' '
-    for letter in clean_text:
-        if letter.isalpha() or letter==' ':
-            pure_text += letter
-    text = ' '.join(word for word in pure_text.split() if len(word)>1)
-    return text
-def preprocess(sentence):
-    #prepocess
-    words = [word for word in nltk.word_tokenize(sentence)]
-    word_list = [wordnet_lemmatizer.lemmatize(word) for word in words]
-    filtered_words = [word.lower() for word in word_list if word not in stopwords.words('english')]
-    return filtered_words
-def getTrainData(i):
-    # tokenize and leave n and 'NN','J','RB'
-    tken=[word for word in nltk.word_tokenize(i)]
-    tags= [i[0] for i in nltk.pos_tag(tken) if (("NN" in i[1]) or ("J" in i[1]) or ("RB" in i[1]))]
-    filtered_0=[word.lower() for word in tags if word not in stopwords.words("english")]
-    filtered_1=[word for word in filtered_0 if not any(char.isdigit() for char in word) ]
-    filtered=[nltk.stem.SnowballStemmer("english").stem(word) for word in filtered_1]
-    return filtered
+    word_set = set()
+    with open(word_file, 'r') as fp:
+        for line in fp.readlines():
+            word = line.strip()
+            if len(word) > 0 and word not in word_set:
+                word_set.add(word)
+    return word_set
+stopwords_file = '/home/richard/Documents/stopwords_cn.txt'
+stopwords_set = make_word_set(stopwords_file)
 doclists = []
-for path,d,filelist in os.walk('/home/lxy/Downloads/category_1'):
-    for filename in filelist:
-        direct = os.path.join(path,filename)
-        print(direct)
-        df = pd.read_csv(direct)
-        df = df[['des']].dropna()
-        docs = df['des']
-        docs = docs.apply(lambda s: clean_email_text(s))
-        docs = docs.apply(lambda s: preprocess(s))
-        doclist = docs.values
-        doclists.extend(doclist)
-    # return doclists
-dictionary = corpora.Dictionary(doclists)
-corpus = [dictionary.doc2bow(text) for text in doclists] #give the word number
-lda = gensim.models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=10)
-print(lda.print_topics(num_topics=10, num_words=5))
-#print(corpus[3])
+path = '/home/richard/Documents/2017-10-26.json'
+def read_news(path):
+    for line in open(path):
+        content = json.loads(line)['content']
+        #print(content)
+        content = content.replace('[财经头条网导读]','')
+        content = content.replace('\n','')
+        word_cut = jieba.cut(content,cut_all=False)
+        word_list = [word for word in word_cut if word not in stopwords_set]
+        no_space_content = [word.strip() for word in word_list if word >= '\u4e00' and word<= '\u9fa5']
+        doclists.append(no_space_content)
+    dictionary = corpora.Dictionary(doclists)
+    corpus = [dictionary.doc2bow(text) for text in doclists] #give the word number
+    lda = gensim.models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=2)
+    data = lda.print_topics(num_topics=10, num_words=10)
+    return data
+print(read_news(path))
